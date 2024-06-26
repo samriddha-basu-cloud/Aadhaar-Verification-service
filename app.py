@@ -1,0 +1,72 @@
+import os
+from flask import Flask, request, jsonify, render_template
+import requests
+from flask_cors import CORS
+from dotenv import load_dotenv
+
+# Load environment variables from .env file (for local development)
+load_dotenv()
+
+app = Flask(__name__)
+
+# Update CORS to allow your Vercel app
+CORS(app, resources={r"/api/*": {"origins": os.getenv('ALLOWED_ORIGIN', 'https://matri-new.vercel.app')}})
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/api/generate-captcha', methods=['POST'])
+def generate_captcha():
+    captcha_url = 'https://tathya.uidai.gov.in/audioCaptchaService/api/captcha/v3/generation'
+    captcha_headers = {
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'verifyAadhaar_IN',
+        'Connection': 'keep-alive',
+        'Content-Type': 'application/json',
+        'Origin': 'https://myaadhaar.uidai.gov.in',
+        'Referer': 'https://myaadhaar.uidai.gov.in/',
+        'User-Agent': 'Mozilla/5.0'
+    }
+    captcha_data = {
+        "captchaLength": "6",
+        "captchaType": "2",
+        "audioCaptchaRequired": True
+    }
+
+    response = requests.post(captcha_url, headers=captcha_headers, json=captcha_data)
+    captcha_response = response.json()
+    
+    return jsonify(captcha_response)
+
+@app.route('/api/verify-aadhaar', methods=['POST'])
+def verify_aadhaar():
+    data = request.json
+    verify_uid_url = 'https://tathya.uidai.gov.in/uidVerifyRetrieveService/api/verifyUID'
+    verify_uid_headers = {
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'verifyAadhaar_IN',
+        'Connection': 'keep-alive',
+        'Content-Type': 'application/json',
+        'Origin': 'https://myaadhaar.uidai.gov.in',
+        'Referer': 'https://myaadhaar.uidai.gov.in/',
+        'User-Agent': 'Mozilla/5.0'
+    }
+
+    verify_uid_data = {
+        "uid": data["aadhaar_number"],
+        "captchaTxnId": data["transaction_id"],
+        "captcha": data["captcha"],
+        "transactionId": data["transaction_id"],
+        "captchaLogic": "V3"
+    }
+
+    response = requests.post(verify_uid_url, headers=verify_uid_headers, json=verify_uid_data)
+    verify_uid_response = response.json()
+
+    return jsonify(verify_uid_response)
+
+if __name__ == '__main__':
+    # Use the PORT environment variable provided by Azure
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
